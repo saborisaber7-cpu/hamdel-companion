@@ -1,207 +1,205 @@
-// Hamdel Voice Companion Client PWA
-document.addEventListener('DOMContentLoaded', () => {
-  const messagesContainer = document.getElementById('messages');
-  const userInput = document.getElementById('user-input');
-  const sendBtn = document.getElementById('send-btn');
-  const micBtn = document.getElementById('mic-btn');
-  const statusEl = document.getElementById('status');
+// Hamdel Companion - Frontend Logic (Chat + Voice Engine)
 
-  let isListening = false;
-  let recognition = null;
-  let synth = window.speechSynthesis || null;
+const chatMessages = document.getElementById('chatMessages');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+const voiceBtn = document.getElementById('voiceBtn');
 
-  // Initialize Web Speech Recognition
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let chatHistory = [];
+let recognition = null;
+let isRecording = false;
 
-  if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'fa-IR';
+// 1. آماده‌سازی موتور تبدیل گفتار به متن (Speech-to-Text)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    recognition.onstart = () => {
-      isListening = true;
-      micBtn.classList.add('active');
-      updateStatus('در حال شنیدن...', 'listening');
-    };
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'fa-IR'; // تشخیص زبان فارسی
+  recognition.continuous = false;
+  recognition.interimResults = false;
 
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      if (transcript && transcript.trim() !== '') {
-        userInput.value = transcript;
-        sendMessage(transcript);
-      }
-    };
+  recognition.onstart = () => {
+    isRecording = true;
+    if (voiceBtn) {
+      voiceBtn.style.backgroundColor = '#ef4444'; // تغییر رنگ دکمه به قرمز هنگام ضبط
+      voiceBtn.title = 'در حال شنیدن...';
+    }
+  };
 
-    recognition.onerror = (event) => {
-      console.warn('Speech recognition error:', event.error);
-      stopListening();
-      if (event.error === 'not-allowed') {
-        updateStatus('دسترسی میکروفون مسدود است', '');
-      } else {
-        updateStatus('آماده گفتگو', '');
-      }
-    };
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    if (transcript && transcript.trim() !== '') {
+      messageInput.value = transcript;
+      sendMessage();
+    }
+  };
 
-    recognition.onend = () => {
-      stopListening();
-    };
-  } else {
-    micBtn.title = 'تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود';
-    micBtn.style.opacity = '0.5';
+  recognition.onerror = (event) => {
+    console.warn('Speech recognition error:', event.error);
+    stopRecording();
+  };
+
+  recognition.onend = () => {
+    stopRecording();
+  };
+} else {
+  if (voiceBtn) {
+    voiceBtn.title = 'مرورگر شما از ورودی صوتی پشتیبانی نمی‌کند.';
+  }
+}
+
+function stopRecording() {
+  isRecording = false;
+  if (voiceBtn) {
+    voiceBtn.style.backgroundColor = '';
+    voiceBtn.title = 'ارسال صوتی';
+  }
+}
+
+// 2. آماده‌سازی موتور خواندن متن با صدا (Text-to-Speech)
+function speakText(text) {
+  if (!('speechSynthesis' in window)) return;
+
+  // توقف صدای در حال پخش قبلی
+  window.speechSynthesis.cancel();
+
+  // پاک کردن ایموجی‌ها و علامت‌های خاص برای روان‌تر شدن خوانش
+  const cleanText = text.replace(/[*_#`~]/g, '');
+
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.lang = 'fa-IR';
+  utterance.rate = 0.95; // سرعت طبیعی
+  utterance.pitch = 1.0;
+
+  // انتخاب بهترین صدای فارسی در دسترس سیستم
+  const voices = window.speechSynthesis.getVoices();
+  const persianVoice = voices.find(v => v.lang.includes('fa') || v.lang.includes('IR'));
+  if (persianVoice) {
+    utterance.voice = persianVoice;
   }
 
-  function startListening() {
+  window.speechSynthesis.speak(utterance);
+}
+
+// بارگذاری اولیه لیست صداهای سیستم
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.speechSynthesis.getVoices();
+  };
+}
+
+// 3. توابع نمایش پیام در صفحه
+function appendMessage(text, sender = 'user') {
+  const msgWrapper = document.createElement('div');
+  msgWrapper.className = `message-wrapper ${sender}`;
+
+  const msgBubble = document.createElement('div');
+  msgBubble.className = `message-bubble ${sender}`;
+  msgBubble.innerText = text;
+
+  const msgTime = document.createElement('span');
+  msgTime.className = 'message-time';
+  const now = new Date();
+  msgTime.innerText = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  msgBubble.appendChild(msgTime);
+  msgWrapper.appendChild(msgBubble);
+  chatMessages.appendChild(msgWrapper);
+
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// 4. ارسال پیام به سرور و دریافت پاسخ هوش مصنوعی
+async function sendMessage() {
+  const text = messageInput.value.trim();
+  if (!text) return;
+
+  appendMessage(text, 'user');
+  messageInput.value = '';
+  messageInput.focus();
+
+  // نمایش حالت «در حال نوشتن...»
+  const typingIndicator = document.createElement('div');
+  typingIndicator.className = 'message-wrapper bot typing';
+  typingIndicator.innerHTML = '<div class="message-bubble bot">در حال پاسخ...</div>';
+  chatMessages.appendChild(typingIndicator);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: text,
+        history: chatHistory
+      })
+    });
+
+    const data = await response.json();
+    chatMessages.removeChild(typingIndicator);
+
+    const botReply = data.reply || 'متأسفانه متوجه نشدم، دوباره بگو.';
+    appendMessage(botReply, 'bot');
+
+    // به‌روزرسانی تاریخچه گفتگو
+    chatHistory.push({ role: 'user', content: text });
+    chatHistory.push({ role: 'assistant', content: botReply });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
+    // خواندن خودکار پاسخ هوش مصنوعی با صدا
+    speakText(botReply);
+
+  } catch (error) {
+    console.error('Fetch error:', error);
+    if (typingIndicator.parentNode) {
+      chatMessages.removeChild(typingIndicator);
+    }
+    const fallbackText = 'ارتباطم یک لحظه قطع شد، لطفاً دوباره بگو.';
+    appendMessage(fallbackText, 'bot');
+    speakText(fallbackText);
+  }
+}
+
+// 5. رویدادهای کلیک و دکمه‌ها
+if (sendBtn) {
+  sendBtn.addEventListener('click', sendMessage);
+}
+
+if (messageInput) {
+  messageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+}
+
+if (voiceBtn) {
+  voiceBtn.addEventListener('click', () => {
     if (!recognition) {
-      alert('مرورگر شما از تشخیص صدای آنلاین پشتیبانی نمی‌کند. لطفاً از مرورگرهای مدرن مثل کروم استفاده فرمایید.');
+      alert('مرورگر شما از قابلیت تشخیص صدا پشتیبانی نمی‌کند. لطفاً از مرورگر کروم استفاده کنید.');
       return;
     }
-    if (synth && synth.speaking) {
-      synth.cancel();
-    }
-    try {
-      recognition.start();
-    } catch (e) {
-      console.error(e);
-      stopListening();
-    }
-  }
 
-  function stopListening() {
-    isListening = false;
-    micBtn.classList.remove('active');
-    if (statusEl.textContent === 'در حال شنیدن...') {
-      updateStatus('آماده گفتگو', '');
-    }
-  }
-
-  function updateStatus(text, className) {
-    if (!statusEl) return;
-    statusEl.textContent = text;
-    statusEl.className = 'status-badge ' + (className || '');
-  }
-
-  function appendMessage(text, isUser = false) {
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble ' + (isUser ? 'user-message' : 'bot-message');
-
-    const content = document.createElement('div');
-    content.className = 'message-content';
-    content.textContent = text;
-
-    const time = document.createElement('span');
-    time.className = 'message-time';
-    const now = new Date();
-    time.textContent = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-
-    bubble.appendChild(content);
-    bubble.appendChild(time);
-    messagesContainer.appendChild(bubble);
-
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
-
-  function speakPersian(text) {
-    if (!synth) return;
-    if (synth.speaking) {
-      synth.cancel();
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'fa-IR';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    // Try to find Persian voice if available
-    const voices = synth.getVoices();
-    const faVoice = voices.find(v => v.lang.includes('fa') || v.lang.includes('IR'));
-    if (faVoice) {
-      utterance.voice = faVoice;
-    }
-
-    utterance.onstart = () => {
-      updateStatus('در حال پاسخ صوتی...', 'speaking');
-    };
-
-    utterance.onend = () => {
-      updateStatus('آماده گفتگو', '');
-    };
-
-    utterance.onerror = () => {
-      updateStatus('آماده گفتگو', '');
-    };
-
-    synth.speak(utterance);
-  }
-
-  async function sendMessage(text) {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    appendMessage(trimmed, true);
-    userInput.value = '';
-    updateStatus('در حال تفکر...', 'thinking');
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ message: trimmed })
-      });
-
-      if (!response.ok) {
-        throw new Error('خطا در برقراری ارتباط با سرور');
+    if (isRecording) {
+      recognition.stop();
+    } else {
+      try {
+        recognition.start();
+      } catch (err) {
+        console.error('Recognition start error:', err);
       }
-
-      const data = await response.json();
-      const botReply = data.reply || 'متأسفانه پاسخی دریافت نشد.';
-      
-      appendMessage(botReply, false);
-      updateStatus('آماده گفتگو', '');
-      speakPersian(botReply);
-
-    } catch (err) {
-      console.error(err);
-      appendMessage('متأسفانه در اتصال به سرور مشکلی پیش آمد. لطفا دوباره تلاش کنید.', false);
-      updateStatus('خطا در اتصال', '');
     }
-  }
+  });
+}
 
-  // Event Listeners
-  if (micBtn) {
-    micBtn.addEventListener('click', () => {
-      if (isListening) {
-        if (recognition) recognition.stop();
-        stopListening();
-      } else {
-        startListening();
-      }
+// ثبت Service Worker برای نسخه PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
+      console.log('SW registration failed:', err);
     });
-  }
-
-  if (sendBtn) {
-    sendBtn.addEventListener('click', () => {
-      sendMessage(userInput.value);
-    });
-  }
-
-  if (userInput) {
-    userInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        sendMessage(userInput.value);
-      }
-    });
-  }
-
-  // Register Service Worker for PWA offline capabilities
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(err => {
-        console.log('SW registration failed: ', err);
-      });
-    });
-  }
-});
+  });
+}
