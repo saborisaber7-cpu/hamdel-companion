@@ -1,0 +1,18 @@
+{
+  "name": "hamdel-companion-pwa",
+  "version": "1.0.0",
+  "description": "همدل - همراه صمیمی، مهربان و شخصی‌سازی‌شده هوش مصنوعی (PWA)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["ai-companion", "persian", "pwa", "chat", "hamdel", "rtl"],
+  "author": "Hamdel Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  }
+}

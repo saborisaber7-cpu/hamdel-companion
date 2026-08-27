@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>همدل | دستیار صوتی هوشمند</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#10b981">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-content">
+        <div class="avatar-container">
+          <div class="avatar-pulse"></div>
+          <div class="avatar-icon">
+            <i class="fa-solid fa-brain"></i>
+          </div>
+        </div>
+        <div class="header-info">
+          <h1>همدل</h1>
+          <p id="status" class="status-badge">آماده گفتگو</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="chat-main" id="messages">
+      <div class="message-bubble bot-message">
+        <div class="message-content">
+          سلام! من <strong>همدل</strong> هستم، دستیار صوتی و متنی شما. می‌تونید با من صحبت کنید یا پیامتون رو بنویسید.
+        </div>
+        <span class="message-time">اکنون</span>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <form id="chat-form" class="input-form" onsubmit="event.preventDefault();">
+        <button type="button" id="mic-btn" class="icon-btn mic-btn" title="مکالمه صوتی" aria-label="شروع صحبت صوتی">
+          <i class="fa-solid fa-microphone"></i>
+        </button>
+        <div class="input-wrapper">
+          <input type="text" id="user-input" placeholder="پیام خود را بنویسید..." autocomplete="off">
+        </div>
+        <button type="submit" id="send-btn" class="icon-btn send-btn" title="ارسال پیام" aria-label="ارسال">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </form>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
